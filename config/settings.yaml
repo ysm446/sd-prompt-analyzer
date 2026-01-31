@@ -8,9 +8,9 @@ paths:
   database_dir: "./data/database"
 
 model:
-  default: "qwen2-vl-7b"
-  device: "auto"  # または "cuda:0"
-  dtype: "bfloat16"  # または "float16"
+  default: "qwen2-vl-2b"  # RTX 4070環境用（VRAM 12GB）
+  device: "cuda"  # GPUモード
+  dtype: "float16"  # GPU使用時はfloat16で高速化
 
 inference:
   temperature: 0.7

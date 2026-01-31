@@ -7,6 +7,13 @@ huggingface-hub>=0.20.0
 pyyaml>=6.0
 accelerate>=0.25.0
 
+# Qwen2-VL specific
+qwen-vl-utils
+torchvision>=0.15.0
+
+# 量子化モデル用（オプション）
+auto-gptq
+optimum
+
 # Optional dependencies
-# torchvision>=0.15.0  # For additional image processing
-# qwen-vl-utils>=0.0.1  # Qwen VL specific utilities (if needed)
+# Additional utilities if needed

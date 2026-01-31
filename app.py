@@ -30,11 +30,25 @@ def main():
     ui = PromptAnalyzerUI(config)
     interface = ui.create_interface()
 
-    interface.launch(
-        server_port=config['ui']['server_port'],
-        share=config['ui']['share'],
-        inbrowser=True
-    )
+    # ポートが使用中の場合は次の空きポートを探す
+    try:
+        interface.launch(
+            server_port=config['ui']['server_port'],
+            share=config['ui']['share'],
+            inbrowser=True,
+            theme=config['ui']['theme']
+        )
+    except OSError as e:
+        if "Cannot find empty port" in str(e):
+            print(f"\nポート {config['ui']['server_port']} は使用中です。")
+            print("別のポートで起動します...")
+            interface.launch(
+                share=config['ui']['share'],
+                inbrowser=True,
+                theme=config['ui']['theme']
+            )
+        else:
+            raise
 
 
 if __name__ == "__main__":

@@ -4,7 +4,14 @@ Vision-Language Model推論インターフェース
 from pathlib import Path
 from typing import Optional
 import torch
-from transformers import AutoModelForVision2Seq, AutoProcessor
+from transformers import AutoProcessor
+try:
+    from transformers import Qwen2VLForConditionalGeneration
+    MODEL_CLASS = Qwen2VLForConditionalGeneration
+except ImportError:
+    # Fallback to AutoModel if Qwen2VL is not available
+    from transformers import AutoModel
+    MODEL_CLASS = AutoModel
 from PIL import Image
 
 
@@ -31,7 +38,7 @@ class VLMInterface:
         モデルをメモリにロード
 
         実装詳細:
-        - transformers.AutoModelForVision2Seq を使用
+        - Qwen2VLForConditionalGeneration または AutoModel を使用
         - device_map="auto" で自動GPU配置
         - torch.bfloat16 または torch.float16
         """
@@ -41,26 +48,57 @@ class VLMInterface:
         torch_dtype = self._get_torch_dtype()
 
         try:
+            import traceback
+
             # プロセッサー（トークナイザー + 画像プロセッサー）をロード
+            print(f"  プロセッサーを読み込み中...")
             self.processor = AutoProcessor.from_pretrained(
                 model_path,
                 trust_remote_code=True
             )
+            print(f"  ✓ プロセッサーの読み込み完了")
 
             # モデルをロード
-            self.model = AutoModelForVision2Seq.from_pretrained(
+            # デバイスマップの設定（CPUモード時は明示的にCPUを指定）
+            if self.device == "cpu":
+                device_map = {"": "cpu"}
+            else:
+                device_map = "auto"
+
+            print(f"  モデルクラス: {MODEL_CLASS.__name__}")
+            print(f"  デバイスマップ: {device_map}")
+            print(f"  モデルを読み込み中...")
+            self.model = MODEL_CLASS.from_pretrained(
                 model_path,
                 torch_dtype=torch_dtype,
-                device_map=self.device if self.device != "auto" else "auto",
+                device_map=device_map,
                 trust_remote_code=True
             )
 
             print(f"✓ モデルの読み込みが完了しました")
-            print(f"  デバイス: {self.device}")
+            print(f"  デバイスマップ: auto")
             print(f"  データ型: {self.dtype}")
 
+            # デバイス情報を表示
+            if hasattr(self.model, 'device'):
+                print(f"  モデルデバイス: {self.model.device}")
+            elif hasattr(self.model, 'hf_device_map'):
+                print(f"  デバイスマップ: {self.model.hf_device_map}")
+
+            # CUDA使用状況
+            if torch.cuda.is_available():
+                print(f"  ✓ CUDA利用可能")
+                print(f"  GPU: {torch.cuda.get_device_name(0)}")
+                print(f"  GPU メモリ: {torch.cuda.get_device_properties(0).total_memory / 1024**3:.1f} GB")
+            else:
+                print(f"  ⚠ CUDA利用不可 - CPUで動作中（非常に遅くなります）")
+
         except Exception as e:
-            print(f"✗ モデルの読み込みに失敗しました: {e}")
+            import traceback
+            print(f"✗ モデルの読み込みに失敗しました")
+            print(f"  エラー: {e}")
+            print(f"\n詳細なエラートレース:")
+            traceback.print_exc()
             raise
 
     def analyze_image_with_prompt(

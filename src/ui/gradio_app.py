@@ -41,7 +41,7 @@ class PromptAnalyzerUI:
         - タブ2: モデル管理
         - タブ3: 設定
         """
-        with gr.Blocks(theme=self.config['ui']['theme'], title="SD Prompt Analyzer") as interface:
+        with gr.Blocks(title="SD Prompt Analyzer") as interface:
             gr.Markdown("# SD Prompt Analyzer")
             gr.Markdown("Stable Diffusion画像のプロンプトを分析するツール")
 
@@ -302,11 +302,13 @@ class PromptAnalyzerUI:
             return history, ""
 
         if self.current_vlm is None:
-            history.append((message, "エラー: モデルがロードされていません"))
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": "エラー: モデルがロードされていません"})
             return history, ""
 
         if not self.image_list or self.current_metadata is None:
-            history.append((message, "エラー: 画像が読み込まれていません"))
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": "エラー: 画像が読み込まれていません"})
             return history, ""
 
         # 現在の画像パス
@@ -323,10 +325,12 @@ class PromptAnalyzerUI:
                 max_tokens=int(max_tokens)
             )
 
-            history.append((message, response))
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": response})
 
         except Exception as e:
-            history.append((message, f"エラー: {str(e)}"))
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": f"エラー: {str(e)}"})
 
         return history, ""
 

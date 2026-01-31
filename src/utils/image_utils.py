@@ -25,13 +25,15 @@ def get_image_files(directory: str, extensions: List[str] = None) -> List[Path]:
     if not directory_path.exists():
         return []
 
-    image_files = []
+    # 大文字小文字を区別しないファイル検索
+    image_files_set = set()
     for ext in extensions:
-        image_files.extend(directory_path.glob(f"*{ext}"))
-        image_files.extend(directory_path.glob(f"*{ext.upper()}"))
+        # 小文字と大文字の両方でマッチング
+        image_files_set.update(directory_path.glob(f"*{ext}"))
+        image_files_set.update(directory_path.glob(f"*{ext.upper()}"))
 
-    # ファイル名でソート
-    return sorted(image_files)
+    # Pathオブジェクトのリストに変換してソート
+    return sorted(list(image_files_set))
 
 
 def resize_image(image: Image.Image, max_size: Tuple[int, int] = (1024, 1024)) -> Image.Image:

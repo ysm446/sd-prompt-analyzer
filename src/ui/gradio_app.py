@@ -106,8 +106,9 @@ class PromptAnalyzerUI:
 
                             user_input = gr.Textbox(
                                 label="質問を入力",
-                                placeholder="または、上のボタンから質問を選択",
-                                lines=2
+                                placeholder="または、上のボタンから質問を選択。Enterで送信",
+                                lines=1,
+                                max_lines=1
                             )
                             submit_btn = gr.Button("送信", variant="primary")
 
@@ -205,6 +206,13 @@ class PromptAnalyzerUI:
                 outputs=[chatbot, user_input, context_info, model_status]
             )
 
+            # Enterキーでも送信
+            user_input.submit(
+                fn=self.chat_with_image,
+                inputs=[user_input, chatbot, temperature_slider, max_tokens_slider],
+                outputs=[chatbot, user_input, context_info, model_status]
+            )
+
             # 質問プリセットボタン
             preset_btn_1.click(
                 fn=self.preset_question_1,
@@ -280,24 +288,35 @@ class PromptAnalyzerUI:
 
     def on_image_upload(self, image_path: str) -> Tuple:
         """画像がアップロードされたときの処理"""
-        # 画像パスがNoneまたは空の場合はクリア
-        if not image_path:
-            return "", "", "{}"
+        try:
+            # 画像パスがNoneまたは空の場合はクリア
+            if not image_path:
+                self.current_image_path = None
+                self.current_metadata = None
+                return "", "", "{}"
 
-        # 画像パスを保存
-        self.current_image_path = image_path
+            # 画像パスを保存
+            self.current_image_path = image_path
 
-        # メタデータを抽出
-        self.current_metadata = ImageParser.extract_metadata(image_path)
+            # メタデータを抽出
+            self.current_metadata = ImageParser.extract_metadata(image_path)
 
-        # SettingsをJSON文字列に変換
-        settings_json = json.dumps(self.current_metadata['settings'], indent=2, ensure_ascii=False)
+            # SettingsをJSON文字列に変換
+            settings_json = json.dumps(self.current_metadata['settings'], indent=2, ensure_ascii=False)
 
-        return (
-            self.current_metadata['prompt'],
-            self.current_metadata['negative_prompt'],
-            settings_json
-        )
+            return (
+                self.current_metadata['prompt'],
+                self.current_metadata['negative_prompt'],
+                settings_json
+            )
+        except Exception as e:
+            print(f"画像読み込みエラー: {e}")
+            import traceback
+            traceback.print_exc()
+            # エラーが発生した場合も状態をクリア
+            self.current_image_path = None
+            self.current_metadata = None
+            return "画像の読み込みに失敗しました。もう一度ドロップしてください。", "", "{}"
 
     def preset_question_1(self, history: List, temperature: float, max_tokens: int):
         """プリセット質問1: この画像について説明"""

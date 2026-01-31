@@ -6,14 +6,19 @@ from typing import Optional, Generator
 from threading import Thread
 import torch
 from transformers import AutoProcessor, TextIteratorStreamer
-try:
-    from transformers import Qwen2VLForConditionalGeneration
-    MODEL_CLASS = Qwen2VLForConditionalGeneration
-except ImportError:
-    # Fallback to AutoModel if Qwen2VL is not available
-    from transformers import AutoModel
-    MODEL_CLASS = AutoModel
 from PIL import Image
+
+# モデルクラスの動的インポート
+try:
+    from transformers import Qwen2_5_VLForConditionalGeneration
+    MODEL_CLASS = Qwen2_5_VLForConditionalGeneration
+except ImportError:
+    try:
+        from transformers import Qwen2VLForConditionalGeneration
+        MODEL_CLASS = Qwen2VLForConditionalGeneration
+    except ImportError:
+        from transformers import AutoModelForCausalLM
+        MODEL_CLASS = AutoModelForCausalLM
 
 
 class VLMInterface:
@@ -154,7 +159,8 @@ class VLMInterface:
         inputs = self.processor(
             text=[text_prompt],
             images=[image],
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True
         )
 
         # GPUに転送（必要な場合）
@@ -234,7 +240,8 @@ class VLMInterface:
         inputs = self.processor(
             text=[text_prompt],
             images=[image],
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True
         )
 
         # GPUに転送（必要な場合）
@@ -317,7 +324,8 @@ class VLMInterface:
         inputs = self.processor(
             text=[text_prompt],
             images=images,
-            return_tensors="pt"
+            return_tensors="pt",
+            padding=True
         )
 
         # GPUに転送

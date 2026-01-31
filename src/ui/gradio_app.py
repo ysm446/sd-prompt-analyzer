@@ -12,6 +12,14 @@ from src.core.vlm_interface import VLMInterface
 from src.utils.image_utils import get_image_files
 from src.utils.config_loader import ConfigLoader
 
+# GGUF対応（llama-cpp-pythonがインストールされている場合のみ）
+try:
+    from src.core.vlm_interface_gguf import VLMInterfaceGGUF
+    GGUF_AVAILABLE = True
+except ImportError:
+    GGUF_AVAILABLE = False
+    print("Warning: llama-cpp-python is not installed. GGUF models will not be available.")
+
 
 class PromptAnalyzerUI:
     """メインUIクラス"""
@@ -387,7 +395,7 @@ class PromptAnalyzerUI:
         return df_data, gr.Dropdown(choices=choices)
 
     def load_vlm_model(self, model_path: str) -> Tuple[str, str]:
-        """VLMモデルをロード"""
+        """VLMモデルをロード（GGUF/Transformers自動判定）"""
         if not model_path:
             return "エラー: モデルが選択されていません", "<small style='color: gray;'>--</small>"
 
@@ -396,12 +404,41 @@ class PromptAnalyzerUI:
             if self.current_vlm is not None:
                 self.current_vlm.unload_model()
 
-            # 新しいモデルをロード
-            self.current_vlm = VLMInterface(
-                model_path=model_path,
-                device=self.config['model']['device'],
-                dtype=self.config['model']['dtype']
-            )
+            # GGUFかTransformersかを判定
+            model_path_obj = Path(model_path)
+            is_gguf = False
+
+            if model_path_obj.is_file() and model_path_obj.suffix == '.gguf':
+                is_gguf = True
+            elif model_path_obj.is_dir():
+                # ディレクトリ内にGGUFファイルがあるか確認
+                gguf_files = list(model_path_obj.glob('*.gguf'))
+                if gguf_files:
+                    is_gguf = True
+                    model_path = str(gguf_files[0])  # 最初のGGUFファイルを使用
+
+            # モデルタイプに応じてロード
+            if is_gguf:
+                # GGUFモデルをロード
+                if not GGUF_AVAILABLE:
+                    return "✗ エラー: llama-cpp-pythonがインストールされていません。GGUFモデルを使用するには、llama-cpp-pythonをインストールしてください。", "<small style='color: gray;'>--</small>"
+
+                gguf_config = self.config.get('gguf', {})
+                self.current_vlm = VLMInterfaceGGUF(
+                    model_path=model_path,
+                    n_ctx=gguf_config.get('n_ctx', 4096),
+                    n_gpu_layers=gguf_config.get('n_gpu_layers', -1),
+                    verbose=gguf_config.get('verbose', False)
+                )
+                model_type_label = "GGUF"
+            else:
+                # Transformersモデルをロード
+                self.current_vlm = VLMInterface(
+                    model_path=model_path,
+                    device=self.config['model']['device'],
+                    dtype=self.config['model']['dtype']
+                )
+                model_type_label = "Transformers"
 
             # コンテキスト長を取得
             context_length = self.current_vlm.get_context_length()
@@ -410,10 +447,12 @@ class PromptAnalyzerUI:
             else:
                 context_info = "<small style='color: gray;'>📊 CONTEXT: 0</small>"
 
-            return f"✓ モデルをロードしました: {Path(model_path).name}", context_info
+            return f"✓ モデルをロードしました [{model_type_label}]: {Path(model_path).name}", context_info
 
         except Exception as e:
-            return f"✗ エラー: {str(e)}", "<small style='color: gray;'>--</small>"
+            import traceback
+            error_detail = traceback.format_exc()
+            return f"✗ エラー: {str(e)}\n\n詳細:\n{error_detail}", "<small style='color: gray;'>--</small>"
 
     def update_preset_info(self, preset_name: str) -> Tuple:
         """プリセット情報を表示"""
@@ -422,28 +461,51 @@ class PromptAnalyzerUI:
 
         preset = self.model_presets[preset_name]
 
+        # モデルタイプを取得（GGUFかどうか）
+        model_type = preset.get('model_type', 'transformers')
+        model_type_label = "GGUF" if model_type == 'gguf' else "Transformers"
+
         info_md = f"""
 ### {preset_name}
 
+**モデルタイプ**: {model_type_label}
 **説明**: {preset['description']}
 **推奨用途**: {preset['recommended_for']}
 **Repository ID**: `{preset['repo_id']}`
 """
 
+        # GGUFの場合はファイル名も表示
+        if 'filename' in preset:
+            info_md += f"\n**ファイル名**: `{preset['filename']}`"
+
         return info_md, preset['repo_id'], preset['local_name']
 
     def download_model(self, repo_id: str, local_name: str) -> str:
-        """モデルをダウンロード"""
+        """モデルをダウンロード（GGUF対応）"""
         if not repo_id:
             return "エラー: Repository IDを入力してください"
 
         try:
+            # 選択されたプリセットから情報を取得
+            filename = None
+            for preset_name, preset in self.model_presets.items():
+                if preset['repo_id'] == repo_id and preset['local_name'] == local_name:
+                    filename = preset.get('filename', None)
+                    break
+
+            # ダウンロード実行
             downloaded_path = self.model_manager.download_model(
                 repo_id=repo_id,
-                local_name=local_name if local_name else None
+                local_name=local_name if local_name else None,
+                filename=filename
             )
 
-            return f"✓ ダウンロード完了\n保存先: {downloaded_path}"
+            if filename:
+                return f"✓ GGUFダウンロード完了\n保存先: {downloaded_path}"
+            else:
+                return f"✓ ダウンロード完了\n保存先: {downloaded_path}"
 
         except Exception as e:
-            return f"✗ ダウンロード失敗\nエラー: {str(e)}"
+            import traceback
+            error_detail = traceback.format_exc()
+            return f"✗ ダウンロード失敗\nエラー: {str(e)}\n\n詳細:\n{error_detail}"

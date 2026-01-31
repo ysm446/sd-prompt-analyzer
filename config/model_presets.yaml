@@ -5,6 +5,13 @@ presets:
     description: "高速、軽量（VRAM ~8GB）"
     recommended_for: "日常使用"
 
+  # Qwen2.5-VL シリーズ（最新版）
+  qwen2.5-vl-7b:
+    repo_id: "Qwen/Qwen2.5-VL-7B-Instruct"
+    local_name: "qwen2.5-vl-7b"
+    description: "最新版 7B（VRAM ~8-10GB、高品質）"
+    recommended_for: "最新機能・高性能環境"
+
   qwen2.5-vl-14b:
     repo_id: "Qwen/Qwen2.5-VL-14B-Instruct"
     local_name: "qwen2.5-vl-14b"

@@ -1,0 +1,23 @@
+app:
+  name: "SD Prompt Analyzer"
+  version: "0.1.0"
+
+paths:
+  image_folder: "./data/sd_outputs"
+  models_dir: "./models"
+  database_dir: "./data/database"
+
+model:
+  default: "qwen2-vl-7b"
+  device: "auto"  # または "cuda:0"
+  dtype: "bfloat16"  # または "float16"
+
+inference:
+  temperature: 0.7
+  max_tokens: 512
+  top_p: 0.9
+
+ui:
+  theme: "soft"
+  share: false
+  server_port: 7860

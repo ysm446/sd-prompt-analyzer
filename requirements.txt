@@ -1,0 +1,12 @@
+# Core dependencies
+gradio>=4.0.0
+transformers>=4.40.0
+torch>=2.0.0
+pillow>=10.0.0
+huggingface-hub>=0.20.0
+pyyaml>=6.0
+accelerate>=0.25.0
+
+# Optional dependencies
+# torchvision>=0.15.0  # For additional image processing
+# qwen-vl-utils>=0.0.1  # Qwen VL specific utilities (if needed)

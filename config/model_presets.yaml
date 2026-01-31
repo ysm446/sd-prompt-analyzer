@@ -1,0 +1,18 @@
+presets:
+  qwen2-vl-7b:
+    repo_id: "Qwen/Qwen2-VL-7B-Instruct"
+    local_name: "qwen2-vl-7b"
+    description: "高速、軽量（VRAM ~8GB）"
+    recommended_for: "日常使用"
+
+  qwen2.5-vl-14b:
+    repo_id: "Qwen/Qwen2.5-VL-14B-Instruct"
+    local_name: "qwen2.5-vl-14b"
+    description: "バランス型（VRAM ~16GB）"
+    recommended_for: "高品質分析"
+
+  qwen2.5-vl-32b:
+    repo_id: "Qwen/Qwen2.5-VL-32B-Instruct"
+    local_name: "qwen2.5-vl-32b"
+    description: "最高品質（VRAM ~24GB）"
+    recommended_for: "詳細分析"

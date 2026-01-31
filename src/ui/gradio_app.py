@@ -5,7 +5,6 @@ import gradio as gr
 import json
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
-from PIL import Image
 
 from src.core.image_parser import ImageParser
 from src.core.model_manager import ModelManager
@@ -50,7 +49,14 @@ class PromptAnalyzerUI:
         - タブ2: モデル管理
         - タブ3: 設定
         """
-        with gr.Blocks(title="SD Prompt Analyzer") as interface:
+        # カスタムCSS（フォント変更）
+        custom_css = """
+        * {
+            font-family: "Segoe UI", "Yu Gothic", "Meiryo", Arial, sans-serif !important;
+        }
+        """
+
+        with gr.Blocks(title="SD Prompt Analyzer", css=custom_css) as interface:
             gr.Markdown("# SD Prompt Analyzer")
             gr.Markdown("Stable Diffusion画像のプロンプトを分析するツール")
 

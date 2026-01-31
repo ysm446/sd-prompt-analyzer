@@ -177,6 +177,7 @@ class PromptAnalyzerUI:
                         with gr.Column():
                             temperature_slider = gr.Slider(
                                 label="Temperature",
+                                info="ランダム性を制御（低い値=正確、高い値=創造的）。画像分析では0.1～0.3を推奨",
                                 minimum=0.0,
                                 maximum=2.0,
                                 value=self.config['inference']['temperature'],
@@ -184,6 +185,7 @@ class PromptAnalyzerUI:
                             )
                             max_tokens_slider = gr.Slider(
                                 label="Max Tokens",
+                                info="生成する最大トークン数（文章の長さ）",
                                 minimum=64,
                                 maximum=2048,
                                 value=self.config['inference']['max_tokens'],
@@ -191,6 +193,7 @@ class PromptAnalyzerUI:
                             )
                             top_p_slider = gr.Slider(
                                 label="Top P",
+                                info="語彙の多様性を制御。0.9前後を推奨",
                                 minimum=0.0,
                                 maximum=1.0,
                                 value=self.config['inference']['top_p'],

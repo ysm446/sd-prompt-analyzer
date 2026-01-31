@@ -2,9 +2,10 @@
 Vision-Language Model推論インターフェース
 """
 from pathlib import Path
-from typing import Optional
+from typing import Optional, Generator
+from threading import Thread
 import torch
-from transformers import AutoProcessor
+from transformers import AutoProcessor, TextIteratorStreamer
 try:
     from transformers import Qwen2VLForConditionalGeneration
     MODEL_CLASS = Qwen2VLForConditionalGeneration
@@ -181,6 +182,91 @@ class VLMInterface:
 
         return response
 
+    def analyze_image_with_prompt_stream(
+        self,
+        image_path: str,
+        prompt_text: str,
+        question: str,
+        temperature: float = 0.7,
+        max_tokens: int = 512
+    ) -> Generator[str, None, None]:
+        """
+        画像とプロンプトを分析（ストリーミング版）
+
+        Args:
+            image_path: 分析対象の画像パス
+            prompt_text: 元のSDプロンプト
+            question: ユーザーの質問
+            temperature: 生成温度
+            max_tokens: 最大トークン数
+
+        Yields:
+            生成されたテキストの断片
+        """
+        if self.model is None or self.processor is None:
+            raise RuntimeError("モデルがロードされていません")
+
+        # 画像を読み込み
+        image = Image.open(image_path).convert('RGB')
+
+        # システムメッセージとユーザーメッセージを構築
+        conversation = [
+            {
+                "role": "system",
+                "content": "あなたは画像分析の専門家です。Stable Diffusionで生成された画像とそのプロンプトを評価してください。"
+            },
+            {
+                "role": "user",
+                "content": [
+                    {"type": "image"},
+                    {"type": "text", "text": f"元のプロンプト:\n{prompt_text}\n\n質問: {question}"}
+                ]
+            }
+        ]
+
+        # プロセッサーでテキストと画像を処理
+        text_prompt = self.processor.apply_chat_template(
+            conversation,
+            tokenize=False,
+            add_generation_prompt=True
+        )
+
+        inputs = self.processor(
+            text=[text_prompt],
+            images=[image],
+            return_tensors="pt"
+        )
+
+        # GPUに転送（必要な場合）
+        if self.device == "cuda" or (self.device == "auto" and torch.cuda.is_available()):
+            inputs = {k: v.to(self.model.device) for k, v in inputs.items()}
+
+        # ストリーマーを作成
+        streamer = TextIteratorStreamer(
+            self.processor.tokenizer,
+            skip_special_tokens=True,
+            skip_prompt=True
+        )
+
+        # 生成パラメータ
+        generation_kwargs = dict(
+            **inputs,
+            max_new_tokens=max_tokens,
+            temperature=temperature,
+            do_sample=temperature > 0,
+            streamer=streamer
+        )
+
+        # 別スレッドで生成を実行
+        thread = Thread(target=self.model.generate, kwargs=generation_kwargs)
+        thread.start()
+
+        # ストリーマーからトークンを順次yield
+        for text in streamer:
+            yield text
+
+        thread.join()
+
     def chat(
         self,
         message: str,
@@ -258,6 +344,29 @@ class VLMInterface:
         response = generated_text.split("assistant\n")[-1].strip()
 
         return response
+
+    def get_context_length(self) -> int:
+        """モデルの最大コンテキスト長を取得"""
+        if self.model is None:
+            return 0
+
+        # モデルの設定からコンテキスト長を取得
+        if hasattr(self.model.config, 'max_position_embeddings'):
+            return self.model.config.max_position_embeddings
+        elif hasattr(self.model.config, 'max_seq_len'):
+            return self.model.config.max_seq_len
+        elif hasattr(self.model.config, 'n_positions'):
+            return self.model.config.n_positions
+        else:
+            return 0  # 不明な場合
+
+    def count_tokens(self, text: str) -> int:
+        """テキストのトークン数をカウント"""
+        if self.processor is None:
+            return 0
+
+        tokens = self.processor.tokenizer.encode(text)
+        return len(tokens)
 
     def unload_model(self):
         """メモリからモデルをアンロード"""

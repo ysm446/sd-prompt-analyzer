@@ -87,6 +87,10 @@ class PromptAnalyzerUI:
                         # 右側: チャット
                         with gr.Column(scale=1):
                             chatbot = gr.Chatbot(label="AI分析", height=500)
+                            context_info = gr.Markdown(
+                                value="<small style='color: gray;'>--</small>",
+                                elem_id="context-info"
+                            )
                             user_input = gr.Textbox(
                                 label="質問を入力",
                                 placeholder="この画像とプロンプトは一致していますか？",
@@ -200,7 +204,7 @@ class PromptAnalyzerUI:
             submit_btn.click(
                 fn=self.chat_with_image,
                 inputs=[user_input, chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input]
+                outputs=[chatbot, user_input, context_info]
             )
 
             clear_btn.click(
@@ -217,7 +221,7 @@ class PromptAnalyzerUI:
             load_model_btn.click(
                 fn=self.load_vlm_model,
                 inputs=[model_dropdown],
-                outputs=[model_status]
+                outputs=[model_status, context_info]
             )
 
             preset_dropdown.change(
@@ -296,43 +300,79 @@ class PromptAnalyzerUI:
         history: List,
         temperature: float,
         max_tokens: int
-    ) -> Tuple:
-        """画像について質問"""
+    ):
+        """画像について質問（ストリーミング対応）"""
+        max_tokens_int = int(max_tokens)
+
         if not message:
-            return history, ""
+            yield history, "", self._get_context_info(history)
+            return
 
         if self.current_vlm is None:
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": "エラー: モデルがロードされていません"})
-            return history, ""
+            yield history, "", "<small style='color: gray;'>--</small>"
+            return
 
         if not self.image_list or self.current_metadata is None:
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": "エラー: 画像が読み込まれていません"})
-            return history, ""
+            yield history, "", self._get_context_info(history)
+            return
 
         # 現在の画像パス
         current_image_path = str(self.image_list[self.current_index])
         prompt_text = self.current_metadata['prompt']
 
+        # ユーザーメッセージを先に追加
+        history.append({"role": "user", "content": message})
+        history.append({"role": "assistant", "content": ""})
+
         try:
-            # VLMで分析
-            response = self.current_vlm.analyze_image_with_prompt(
+            # VLMでストリーミング分析
+            response = ""
+            for chunk in self.current_vlm.analyze_image_with_prompt_stream(
                 image_path=current_image_path,
                 prompt_text=prompt_text,
                 question=message,
                 temperature=temperature,
-                max_tokens=int(max_tokens)
-            )
-
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": response})
+                max_tokens=max_tokens_int
+            ):
+                response += chunk
+                history[-1]["content"] = response
+                yield history, "", self._get_context_info(history)
 
         except Exception as e:
-            history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": f"エラー: {str(e)}"})
+            history[-1]["content"] = f"エラー: {str(e)}"
+            yield history, "", self._get_context_info(history)
 
-        return history, ""
+    def _get_context_info(self, history: List) -> str:
+        """コンテキスト情報を取得（Markdown形式）"""
+        if self.current_vlm is None:
+            return "<small style='color: gray;'>--</small>"
+
+        # 履歴のテキストを結合してトークン数を計算
+        total_text = ""
+        for msg in history:
+            if isinstance(msg, dict) and "content" in msg:
+                content = msg["content"]
+                # contentがリストの場合はテキスト部分のみ抽出
+                if isinstance(content, list):
+                    for item in content:
+                        if isinstance(item, dict) and item.get("type") == "text":
+                            total_text += item.get("text", "") + "\n"
+                        elif isinstance(item, str):
+                            total_text += item + "\n"
+                elif isinstance(content, str):
+                    total_text += content + "\n"
+
+        used_tokens = self.current_vlm.count_tokens(total_text)
+        context_length = self.current_vlm.get_context_length()
+
+        if context_length > 0:
+            return f"<small style='color: gray;'>📊 CONTEXT: {used_tokens:,} / {context_length:,}</small>"
+        else:
+            return f"<small style='color: gray;'>📊 CONTEXT: {used_tokens:,}</small>"
 
     def refresh_local_models(self) -> Tuple:
         """ローカルモデル一覧を更新"""
@@ -346,10 +386,10 @@ class PromptAnalyzerUI:
 
         return df_data, gr.Dropdown(choices=choices)
 
-    def load_vlm_model(self, model_path: str) -> str:
+    def load_vlm_model(self, model_path: str) -> Tuple[str, str]:
         """VLMモデルをロード"""
         if not model_path:
-            return "エラー: モデルが選択されていません"
+            return "エラー: モデルが選択されていません", "<small style='color: gray;'>--</small>"
 
         try:
             # 既存モデルをアンロード
@@ -363,10 +403,17 @@ class PromptAnalyzerUI:
                 dtype=self.config['model']['dtype']
             )
 
-            return f"✓ モデルをロードしました: {Path(model_path).name}"
+            # コンテキスト長を取得
+            context_length = self.current_vlm.get_context_length()
+            if context_length > 0:
+                context_info = f"<small style='color: gray;'>📊 CONTEXT: 0 / {context_length:,}</small>"
+            else:
+                context_info = "<small style='color: gray;'>📊 CONTEXT: 0</small>"
+
+            return f"✓ モデルをロードしました: {Path(model_path).name}", context_info
 
         except Exception as e:
-            return f"✗ エラー: {str(e)}"
+            return f"✗ エラー: {str(e)}", "<small style='color: gray;'>--</small>"
 
     def update_preset_info(self, preset_name: str) -> Tuple:
         """プリセット情報を表示"""

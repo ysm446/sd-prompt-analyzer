@@ -2,6 +2,7 @@
 Gradio UI実装
 """
 import gradio as gr
+import json
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 from PIL import Image
@@ -9,7 +10,6 @@ from PIL import Image
 from src.core.image_parser import ImageParser
 from src.core.model_manager import ModelManager
 from src.core.vlm_interface import VLMInterface
-from src.utils.image_utils import get_image_files
 from src.utils.config_loader import ConfigLoader
 
 # GGUF対応（llama-cpp-pythonがインストールされている場合のみ）
@@ -32,9 +32,10 @@ class PromptAnalyzerUI:
         self.config = config
         self.model_manager = ModelManager(config['paths']['models_dir'])
         self.current_vlm: Optional[VLMInterface] = None
-        self.image_list: List[Path] = []
-        self.current_index: int = 0
+        self.current_image_path: Optional[str] = None
         self.current_metadata: Optional[Dict] = None
+        self.selected_model_path: Optional[str] = None  # 選択されているモデルのパス
+        self.last_model_cache_file = Path(".last_model_cache.json")
 
         # モデルプリセットを読み込み
         config_loader = ConfigLoader()
@@ -59,23 +60,11 @@ class PromptAnalyzerUI:
                     with gr.Row():
                         # 左側: 画像表示
                         with gr.Column(scale=1):
-                            image_display = gr.Image(label="画像", type="pil", height=400)
-
-                            with gr.Row():
-                                prev_btn = gr.Button("← 前へ", size="sm")
-                                next_btn = gr.Button("次へ →", size="sm")
-
-                            folder_path = gr.Textbox(
-                                label="画像フォルダ",
-                                value=self.config['paths']['image_folder'],
-                                placeholder="./data/sd_outputs"
-                            )
-                            load_folder_btn = gr.Button("フォルダを読み込み", variant="primary")
-
-                            image_counter = gr.Textbox(
-                                label="画像番号",
-                                value="0 / 0",
-                                interactive=False
+                            image_display = gr.Image(
+                                label="ここに画像をドロップ",
+                                type="filepath",
+                                sources=["upload"],
+                                height=400
                             )
 
                             # プロンプト情報表示
@@ -90,22 +79,37 @@ class PromptAnalyzerUI:
                                     lines=2,
                                     interactive=False
                                 )
-                                settings_display = gr.JSON(label="Settings", value={})
+                                settings_display = gr.Code(
+                                    label="Settings",
+                                    language="json",
+                                    interactive=False,
+                                    lines=5
+                                )
 
                         # 右側: チャット
                         with gr.Column(scale=1):
                             chatbot = gr.Chatbot(label="AI分析", height=500)
+                            clear_btn = gr.Button("🗑️ チャット履歴をクリア", size="sm", variant="secondary")
                             context_info = gr.Markdown(
                                 value="<small style='color: gray;'>--</small>",
                                 elem_id="context-info"
                             )
+
+                            # 質問プリセットボタン
+                            gr.Markdown("### クイック質問")
+                            with gr.Row():
+                                preset_btn_1 = gr.Button("📸 この画像について説明", size="sm")
+                                preset_btn_2 = gr.Button("✅ プロンプトとの一致確認", size="sm")
+                            with gr.Row():
+                                preset_btn_3 = gr.Button("✨ プロンプト改善案", size="sm")
+                                preset_btn_4 = gr.Button("📝 詳細プロンプト提案", size="sm")
+
                             user_input = gr.Textbox(
                                 label="質問を入力",
-                                placeholder="この画像とプロンプトは一致していますか？",
+                                placeholder="または、上のボタンから質問を選択",
                                 lines=2
                             )
                             submit_btn = gr.Button("送信", variant="primary")
-                            clear_btn = gr.Button("チャット履歴をクリア")
 
                             # モデル選択
                             model_dropdown = gr.Dropdown(
@@ -187,32 +191,43 @@ class PromptAnalyzerUI:
                             )
 
             # イベントハンドラー
-            # フォルダ読み込み
-            load_folder_btn.click(
-                fn=self.load_image_folder,
-                inputs=[folder_path],
-                outputs=[image_display, image_counter, prompt_display,
-                         negative_prompt_display, settings_display]
-            )
-
-            # 画像ナビゲーション
-            next_btn.click(
-                fn=self.next_image,
-                outputs=[image_display, image_counter, prompt_display,
-                         negative_prompt_display, settings_display]
-            )
-
-            prev_btn.click(
-                fn=self.prev_image,
-                outputs=[image_display, image_counter, prompt_display,
-                         negative_prompt_display, settings_display]
+            # 画像アップロード（changeイベントで処理）
+            image_display.change(
+                fn=self.on_image_upload,
+                inputs=[image_display],
+                outputs=[prompt_display, negative_prompt_display, settings_display]
             )
 
             # チャット
             submit_btn.click(
                 fn=self.chat_with_image,
                 inputs=[user_input, chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input, context_info]
+                outputs=[chatbot, user_input, context_info, model_status]
+            )
+
+            # 質問プリセットボタン
+            preset_btn_1.click(
+                fn=self.preset_question_1,
+                inputs=[chatbot, temperature_slider, max_tokens_slider],
+                outputs=[chatbot, user_input, context_info, model_status]
+            )
+
+            preset_btn_2.click(
+                fn=self.preset_question_2,
+                inputs=[chatbot, temperature_slider, max_tokens_slider],
+                outputs=[chatbot, user_input, context_info, model_status]
+            )
+
+            preset_btn_3.click(
+                fn=self.preset_question_3,
+                inputs=[chatbot, temperature_slider, max_tokens_slider],
+                outputs=[chatbot, user_input, context_info, model_status]
+            )
+
+            preset_btn_4.click(
+                fn=self.preset_question_4,
+                inputs=[chatbot, temperature_slider, max_tokens_slider],
+                outputs=[chatbot, user_input, context_info, model_status]
             )
 
             clear_btn.click(
@@ -224,6 +239,17 @@ class PromptAnalyzerUI:
             refresh_models_btn.click(
                 fn=self.refresh_local_models,
                 outputs=[local_models_display, model_dropdown]
+            )
+
+            # モデルドロップダウンの変更時に選択を保存
+            def save_selected_model(path):
+                self.selected_model_path = path
+                self.save_last_model_path(path) if path else None
+
+            model_dropdown.change(
+                fn=save_selected_model,
+                inputs=[model_dropdown],
+                outputs=[]
             )
 
             load_model_btn.click(
@@ -252,55 +278,54 @@ class PromptAnalyzerUI:
 
         return interface
 
-    def load_image_folder(self, folder_path: str) -> Tuple:
-        """画像フォルダをスキャン"""
-        self.image_list = get_image_files(folder_path)
-        self.current_index = 0
+    def on_image_upload(self, image_path: str) -> Tuple:
+        """画像がアップロードされたときの処理"""
+        # 画像パスがNoneまたは空の場合はクリア
+        if not image_path:
+            return "", "", "{}"
 
-        if not self.image_list:
-            return None, "0 / 0", "", "", {}
-
-        return self._get_current_image_data()
-
-    def next_image(self) -> Tuple:
-        """次の画像に移動"""
-        if not self.image_list:
-            return None, "0 / 0", "", "", {}
-
-        self.current_index = (self.current_index + 1) % len(self.image_list)
-        return self._get_current_image_data()
-
-    def prev_image(self) -> Tuple:
-        """前の画像に移動"""
-        if not self.image_list:
-            return None, "0 / 0", "", "", {}
-
-        self.current_index = (self.current_index - 1) % len(self.image_list)
-        return self._get_current_image_data()
-
-    def _get_current_image_data(self) -> Tuple:
-        """現在の画像とメタデータを取得"""
-        if not self.image_list:
-            return None, "0 / 0", "", "", {}
-
-        current_image_path = self.image_list[self.current_index]
-
-        # 画像を読み込み
-        image = Image.open(current_image_path)
+        # 画像パスを保存
+        self.current_image_path = image_path
 
         # メタデータを抽出
-        self.current_metadata = ImageParser.extract_metadata(str(current_image_path))
+        self.current_metadata = ImageParser.extract_metadata(image_path)
 
-        # カウンター
-        counter = f"{self.current_index + 1} / {len(self.image_list)}"
+        # SettingsをJSON文字列に変換
+        settings_json = json.dumps(self.current_metadata['settings'], indent=2, ensure_ascii=False)
 
         return (
-            image,
-            counter,
             self.current_metadata['prompt'],
             self.current_metadata['negative_prompt'],
-            self.current_metadata['settings']
+            settings_json
         )
+
+    def preset_question_1(self, history: List, temperature: float, max_tokens: int):
+        """プリセット質問1: この画像について説明"""
+        for result in self.chat_with_image("この画像について説明してください", history, temperature, max_tokens):
+            yield result
+
+    def preset_question_2(self, history: List, temperature: float, max_tokens: int):
+        """プリセット質問2: プロンプトとの一致確認"""
+        for result in self.chat_with_image("この画像とプロンプトは一致していますか?", history, temperature, max_tokens):
+            yield result
+
+    def preset_question_3(self, history: List, temperature: float, max_tokens: int):
+        """プリセット質問3: プロンプト改善案"""
+        for result in self.chat_with_image("改善したプロンプトを書いてください", history, temperature, max_tokens):
+            yield result
+
+    def preset_question_4(self, history: List, temperature: float, max_tokens: int):
+        """プリセット質問4: 詳細プロンプト提案"""
+        for result in self.chat_with_image("より詳細なプロンプトを提案してください", history, temperature, max_tokens):
+            yield result
+
+    def _get_model_status(self) -> str:
+        """現在のモデル状態を取得"""
+        if self.current_vlm is None:
+            return "モデル未ロード"
+        if self.selected_model_path:
+            return f"✓ モデルロード済み: {Path(self.selected_model_path).name}"
+        return "モデルロード済み"
 
     def chat_with_image(
         self,
@@ -313,23 +338,41 @@ class PromptAnalyzerUI:
         max_tokens_int = int(max_tokens)
 
         if not message:
-            yield history, "", self._get_context_info(history)
+            yield history, "", self._get_context_info(history), self._get_model_status()
             return
+
+        # モデルが未ロードで、モデルが選択されている場合は自動ロード
+        if self.current_vlm is None and self.selected_model_path:
+            history.append({"role": "user", "content": message})
+            history.append({"role": "assistant", "content": "モデルをロード中..."})
+            yield history, "", "<small style='color: gray;'>モデルをロード中...</small>", "モデルをロード中..."
+
+            # モデルをロード
+            status, context = self.load_vlm_model(self.selected_model_path)
+
+            if "✓" not in status:
+                # ロード失敗
+                history[-1]["content"] = f"エラー: モデルのロードに失敗しました\n{status}"
+                yield history, "", "<small style='color: gray;'>--</small>", status
+                return
+
+            # ロード成功、メッセージを削除して再実行
+            history.pop()
+            history.pop()
 
         if self.current_vlm is None:
             history.append({"role": "user", "content": message})
-            history.append({"role": "assistant", "content": "エラー: モデルがロードされていません"})
-            yield history, "", "<small style='color: gray;'>--</small>"
+            history.append({"role": "assistant", "content": "エラー: モデルを選択してください"})
+            yield history, "", "<small style='color: gray;'>--</small>", "エラー: モデルを選択してください"
             return
 
-        if not self.image_list or self.current_metadata is None:
+        if not self.current_image_path or self.current_metadata is None:
             history.append({"role": "user", "content": message})
             history.append({"role": "assistant", "content": "エラー: 画像が読み込まれていません"})
-            yield history, "", self._get_context_info(history)
+            yield history, "", self._get_context_info(history), self._get_model_status()
             return
 
         # 現在の画像パス
-        current_image_path = str(self.image_list[self.current_index])
         prompt_text = self.current_metadata['prompt']
 
         # ユーザーメッセージを先に追加
@@ -340,7 +383,7 @@ class PromptAnalyzerUI:
             # VLMでストリーミング分析
             response = ""
             for chunk in self.current_vlm.analyze_image_with_prompt_stream(
-                image_path=current_image_path,
+                image_path=self.current_image_path,
                 prompt_text=prompt_text,
                 question=message,
                 temperature=temperature,
@@ -348,11 +391,11 @@ class PromptAnalyzerUI:
             ):
                 response += chunk
                 history[-1]["content"] = response
-                yield history, "", self._get_context_info(history)
+                yield history, "", self._get_context_info(history), self._get_model_status()
 
         except Exception as e:
             history[-1]["content"] = f"エラー: {str(e)}"
-            yield history, "", self._get_context_info(history)
+            yield history, "", self._get_context_info(history), self._get_model_status()
 
     def _get_context_info(self, history: List) -> str:
         """コンテキスト情報を取得（Markdown形式）"""
@@ -392,12 +435,23 @@ class PromptAnalyzerUI:
         # ドロップダウン用の選択肢
         choices = [m['path'] for m in models]
 
+        # 前回使用したモデルを読み込み
+        last_model_path = self.load_last_model_path()
+
+        # 前回のモデルがまだ存在する場合は初期値に設定
+        if last_model_path and last_model_path in choices:
+            self.selected_model_path = last_model_path
+            return df_data, gr.Dropdown(choices=choices, value=last_model_path)
+
         return df_data, gr.Dropdown(choices=choices)
 
     def load_vlm_model(self, model_path: str) -> Tuple[str, str]:
         """VLMモデルをロード（GGUF/Transformers自動判定）"""
         if not model_path:
             return "エラー: モデルが選択されていません", "<small style='color: gray;'>--</small>"
+
+        # 選択されたモデルパスを保存
+        self.selected_model_path = model_path
 
         try:
             # 既存モデルをアンロード
@@ -447,6 +501,9 @@ class PromptAnalyzerUI:
             else:
                 context_info = "<small style='color: gray;'>📊 CONTEXT: 0</small>"
 
+            # 最後に使用したモデルとして保存
+            self.save_last_model_path(model_path)
+
             return f"✓ モデルをロードしました [{model_type_label}]: {Path(model_path).name}", context_info
 
         except Exception as e:
@@ -479,6 +536,26 @@ class PromptAnalyzerUI:
             info_md += f"\n**ファイル名**: `{preset['filename']}`"
 
         return info_md, preset['repo_id'], preset['local_name']
+
+    def save_last_model_path(self, model_path: str):
+        """最後に使用したモデルのパスを保存"""
+        try:
+            self.last_model_cache_file.write_text(
+                json.dumps({"last_model": model_path}, ensure_ascii=False, indent=2),
+                encoding='utf-8'
+            )
+        except Exception as e:
+            print(f"警告: モデルパスの保存に失敗しました: {e}")
+
+    def load_last_model_path(self) -> Optional[str]:
+        """最後に使用したモデルのパスを読み込み"""
+        try:
+            if self.last_model_cache_file.exists():
+                data = json.loads(self.last_model_cache_file.read_text(encoding='utf-8'))
+                return data.get("last_model")
+        except Exception as e:
+            print(f"警告: モデルパスの読み込みに失敗しました: {e}")
+        return None
 
     def download_model(self, repo_id: str, local_name: str) -> str:
         """モデルをダウンロード（GGUF対応）"""

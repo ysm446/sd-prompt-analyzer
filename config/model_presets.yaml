@@ -1,45 +1,26 @@
 presets:
+  # Qwen2-VL シリーズ
   qwen2-vl-7b:
     repo_id: "Qwen/Qwen2-VL-7B-Instruct"
     local_name: "qwen2-vl-7b"
-    description: "高速、軽量（VRAM ~8GB）"
-    recommended_for: "日常使用"
+    description: "Qwen2-VL 7B（VRAM ~8GB）"
+    recommended_for: "標準的な使用"
+
+  qwen2-vl-7b-awq:
+    repo_id: "Qwen/Qwen2-VL-7B-Instruct-AWQ"
+    local_name: "qwen2-vl-7b-awq"
+    description: "Qwen2-VL 7B AWQ 4-bit量子化（VRAM ~2-3GB）"
+    recommended_for: "低メモリ環境"
 
   # Qwen2.5-VL シリーズ（最新版）
   qwen2.5-vl-7b:
     repo_id: "Qwen/Qwen2.5-VL-7B-Instruct"
     local_name: "qwen2.5-vl-7b"
-    description: "最新版 7B（VRAM ~8-10GB、高品質）"
-    recommended_for: "最新機能・高性能環境"
+    description: "Qwen2.5-VL 7B 最新版（VRAM ~8-10GB）"
+    recommended_for: "最新機能・高品質"
 
-  qwen2.5-vl-14b:
-    repo_id: "Qwen/Qwen2.5-VL-14B-Instruct"
-    local_name: "qwen2.5-vl-14b"
-    description: "バランス型（VRAM ~16GB）"
-    recommended_for: "高品質分析"
-
-  qwen2.5-vl-32b:
-    repo_id: "Qwen/Qwen2.5-VL-32B-Instruct"
-    local_name: "qwen2.5-vl-32b"
-    description: "最高品質（VRAM ~24GB）"
-    recommended_for: "詳細分析"
-
-  # 量子化モデル（メモリ削減・高速化）
-  qwen2-vl-7b-awq:
-    repo_id: "Qwen/Qwen2-VL-7B-Instruct-AWQ"
-    local_name: "qwen2-vl-7b-awq"
-    description: "AWQ 4-bit量子化（CPU/GPU両対応、メモリ ~2GB）"
-    recommended_for: "低メモリ環境・CPU使用"
-
-  qwen2-vl-7b-gptq:
-    repo_id: "Qwen/Qwen2-VL-7B-Instruct-GPTQ-Int4"
-    local_name: "qwen2-vl-7b-gptq"
-    description: "GPTQ 4-bit量子化（GPU最適化、メモリ ~2GB）"
-    recommended_for: "GPU使用時の高速化"
-
-  # 小型モデル
-  qwen2-vl-2b:
-    repo_id: "Qwen/Qwen2-VL-2B-Instruct"
-    local_name: "qwen2-vl-2b"
-    description: "超軽量（CPU/GPU、メモリ ~4GB）"
-    recommended_for: "最小メモリ環境"
+  qwen2.5-vl-7b-awq:
+    repo_id: "Qwen/Qwen2.5-VL-7B-Instruct-AWQ"
+    local_name: "qwen2.5-vl-7b-awq"
+    description: "Qwen2.5-VL 7B AWQ 4-bit量子化（VRAM ~2-3GB）"
+    recommended_for: "最新版・低メモリ環境"

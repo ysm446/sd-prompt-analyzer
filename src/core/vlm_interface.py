@@ -5,20 +5,9 @@ from pathlib import Path
 from typing import Optional, Generator
 from threading import Thread
 import torch
+import json
 from transformers import AutoProcessor, TextIteratorStreamer
 from PIL import Image
-
-# モデルクラスの動的インポート
-try:
-    from transformers import Qwen2_5_VLForConditionalGeneration
-    MODEL_CLASS = Qwen2_5_VLForConditionalGeneration
-except ImportError:
-    try:
-        from transformers import Qwen2VLForConditionalGeneration
-        MODEL_CLASS = Qwen2VLForConditionalGeneration
-    except ImportError:
-        from transformers import AutoModelForCausalLM
-        MODEL_CLASS = AutoModelForCausalLM
 
 
 class VLMInterface:
@@ -71,10 +60,13 @@ class VLMInterface:
             else:
                 device_map = "auto"
 
-            print(f"  モデルクラス: {MODEL_CLASS.__name__}")
+            # config.jsonからアーキテクチャを判定して適切なモデルクラスを選択
+            model_class = self._get_model_class(model_path)
+
+            print(f"  モデルクラス: {model_class.__name__}")
             print(f"  デバイスマップ: {device_map}")
             print(f"  モデルを読み込み中...")
-            self.model = MODEL_CLASS.from_pretrained(
+            self.model = model_class.from_pretrained(
                 model_path,
                 torch_dtype=torch_dtype,
                 device_map=device_map,
@@ -391,6 +383,60 @@ class VLMInterface:
             torch.cuda.empty_cache()
 
         print("モデルをアンロードしました")
+
+    def _get_model_class(self, model_path: str):
+        """
+        config.jsonからアーキテクチャを読み取って適切なモデルクラスを返す
+
+        Args:
+            model_path: モデルディレクトリのパス
+
+        Returns:
+            モデルクラス
+        """
+        config_path = Path(model_path) / "config.json"
+
+        if config_path.exists():
+            try:
+                with open(config_path, 'r', encoding='utf-8') as f:
+                    config = json.load(f)
+
+                architecture = config.get('architectures', [None])[0]
+                print(f"  検出されたアーキテクチャ: {architecture}")
+
+                # アーキテクチャに基づいてモデルクラスを選択
+                if architecture == "Qwen2_5_VLForConditionalGeneration":
+                    try:
+                        from transformers import Qwen2_5_VLForConditionalGeneration
+                        return Qwen2_5_VLForConditionalGeneration
+                    except ImportError:
+                        print(f"  警告: Qwen2_5_VLForConditionalGenerationが見つかりません。AutoModelを使用します。")
+                        from transformers import AutoModel
+                        return AutoModel
+
+                elif architecture == "Qwen2VLForConditionalGeneration":
+                    try:
+                        from transformers import Qwen2VLForConditionalGeneration
+                        return Qwen2VLForConditionalGeneration
+                    except ImportError:
+                        print(f"  警告: Qwen2VLForConditionalGenerationが見つかりません。AutoModelを使用します。")
+                        from transformers import AutoModel
+                        return AutoModel
+
+                else:
+                    print(f"  未知のアーキテクチャです。AutoModelを使用します。")
+                    from transformers import AutoModel
+                    return AutoModel
+
+            except Exception as e:
+                print(f"  警告: config.jsonの読み込みに失敗しました: {e}")
+                print(f"  AutoModelを使用します。")
+                from transformers import AutoModel
+                return AutoModel
+        else:
+            print(f"  警告: config.jsonが見つかりません。AutoModelを使用します。")
+            from transformers import AutoModel
+            return AutoModel
 
     def _get_torch_dtype(self):
         """データ型文字列をtorch dtypeに変換"""

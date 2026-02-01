@@ -1,3 +1,8 @@
 {
-  "last_model": "models\\qwen3-vl-8b"
+  "last_model": "models\\qwen3-vl-8b",
+  "inference_settings": {
+    "temperature": 0.7,
+    "max_tokens": 1024,
+    "top_p": 0.9
+  }
 }

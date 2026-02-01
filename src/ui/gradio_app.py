@@ -56,6 +56,12 @@ class PromptAnalyzerUI:
         }
         """
 
+        # キャッシュから推論設定を読み込み（なければconfigのデフォルト値を使用）
+        cached_settings = self.load_inference_settings()
+        initial_temperature = cached_settings.get('temperature', self.config['inference']['temperature'])
+        initial_max_tokens = cached_settings.get('max_tokens', self.config['inference']['max_tokens'])
+        initial_top_p = cached_settings.get('top_p', self.config['inference']['top_p'])
+
         with gr.Blocks(title="SD Prompt Analyzer", css=custom_css) as interface:
             gr.Markdown("# SD Prompt Analyzer")
             gr.Markdown("Stable Diffusion画像のプロンプトを分析するツール")
@@ -180,7 +186,7 @@ class PromptAnalyzerUI:
                                 info="ランダム性を制御（低い値=正確、高い値=創造的）。画像分析では0.1～0.3を推奨",
                                 minimum=0.0,
                                 maximum=2.0,
-                                value=self.config['inference']['temperature'],
+                                value=initial_temperature,
                                 step=0.1
                             )
                             max_tokens_slider = gr.Slider(
@@ -188,7 +194,7 @@ class PromptAnalyzerUI:
                                 info="生成する最大トークン数（文章の長さ）",
                                 minimum=64,
                                 maximum=2048,
-                                value=self.config['inference']['max_tokens'],
+                                value=initial_max_tokens,
                                 step=64
                             )
                             top_p_slider = gr.Slider(
@@ -196,7 +202,7 @@ class PromptAnalyzerUI:
                                 info="語彙の多様性を制御。0.9前後を推奨",
                                 minimum=0.0,
                                 maximum=1.0,
-                                value=self.config['inference']['top_p'],
+                                value=initial_top_p,
                                 step=0.05
                             )
 
@@ -285,6 +291,26 @@ class PromptAnalyzerUI:
                 fn=self.download_model,
                 inputs=[repo_id_input, local_name_input],
                 outputs=[download_status]
+            )
+
+            # 推論設定の変更時にキャッシュを更新
+            def on_settings_change(temp, tokens, top_p):
+                self.save_inference_settings(temp, tokens, top_p)
+
+            temperature_slider.change(
+                fn=on_settings_change,
+                inputs=[temperature_slider, max_tokens_slider, top_p_slider],
+                outputs=[]
+            )
+            max_tokens_slider.change(
+                fn=on_settings_change,
+                inputs=[temperature_slider, max_tokens_slider, top_p_slider],
+                outputs=[]
+            )
+            top_p_slider.change(
+                fn=on_settings_change,
+                inputs=[temperature_slider, max_tokens_slider, top_p_slider],
+                outputs=[]
             )
 
             # 初期ロード
@@ -566,14 +592,50 @@ class PromptAnalyzerUI:
         return info_md, preset['repo_id'], preset['local_name']
 
     def save_last_model_path(self, model_path: str):
-        """最後に使用したモデルのパスを保存"""
+        """最後に使用したモデルのパスを保存（settings含む）"""
         try:
+            # 既存のデータを読み込み
+            data = {}
+            if self.last_model_cache_file.exists():
+                try:
+                    data = json.loads(self.last_model_cache_file.read_text(encoding='utf-8'))
+                except:
+                    pass
+
+            # モデルパスを更新
+            data["last_model"] = model_path
+
             self.last_model_cache_file.write_text(
-                json.dumps({"last_model": model_path}, ensure_ascii=False, indent=2),
+                json.dumps(data, ensure_ascii=False, indent=2),
                 encoding='utf-8'
             )
         except Exception as e:
             print(f"警告: モデルパスの保存に失敗しました: {e}")
+
+    def save_inference_settings(self, temperature: float, max_tokens: int, top_p: float):
+        """推論設定を保存"""
+        try:
+            # 既存のデータを読み込み
+            data = {}
+            if self.last_model_cache_file.exists():
+                try:
+                    data = json.loads(self.last_model_cache_file.read_text(encoding='utf-8'))
+                except:
+                    pass
+
+            # 設定を更新
+            data["inference_settings"] = {
+                "temperature": temperature,
+                "max_tokens": int(max_tokens),
+                "top_p": top_p
+            }
+
+            self.last_model_cache_file.write_text(
+                json.dumps(data, ensure_ascii=False, indent=2),
+                encoding='utf-8'
+            )
+        except Exception as e:
+            print(f"警告: 推論設定の保存に失敗しました: {e}")
 
     def load_last_model_path(self) -> Optional[str]:
         """最後に使用したモデルのパスを読み込み"""
@@ -584,6 +646,16 @@ class PromptAnalyzerUI:
         except Exception as e:
             print(f"警告: モデルパスの読み込みに失敗しました: {e}")
         return None
+
+    def load_inference_settings(self) -> dict:
+        """推論設定を読み込み"""
+        try:
+            if self.last_model_cache_file.exists():
+                data = json.loads(self.last_model_cache_file.read_text(encoding='utf-8'))
+                return data.get("inference_settings", {})
+        except Exception as e:
+            print(f"警告: 推論設定の読み込みに失敗しました: {e}")
+        return {}
 
     def download_model(self, repo_id: str, local_name: str) -> str:
         """モデルをダウンロード（GGUF対応）"""

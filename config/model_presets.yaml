@@ -24,3 +24,16 @@ presets:
     local_name: "qwen3-vl-8b"
     description: "Qwen3-VL 8B（VRAM ~10-12GB）"
     recommended_for: "最新世代・高性能"
+
+  # Huihui-AI abliterated シリーズ（試験用）
+  huihui-qwen3-vl-4b-abliterated:
+    repo_id: "huihui-ai/Huihui-Qwen3-VL-4B-Instruct-abliterated"
+    local_name: "huihui-qwen3-vl-4b-abliterated"
+    description: "Huihui Qwen3-VL 4B abliterated（VRAM ~6GB）"
+    recommended_for: "試験用・フィルタ除去版"
+
+  huihui-qwen3-vl-8b-abliterated:
+    repo_id: "huihui-ai/Huihui-Qwen3-VL-8B-Instruct-abliterated"
+    local_name: "huihui-qwen3-vl-8b-abliterated"
+    description: "Huihui Qwen3-VL 8B abliterated（VRAM ~10-12GB）"
+    recommended_for: "試験用・フィルタ除去版"

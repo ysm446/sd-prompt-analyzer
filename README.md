@@ -20,9 +20,9 @@ Stable Diffusionで生成された画像とそのプロンプトを、Vision-Lan
 
 ## 対応モデル
 
-- Qwen2-VL系 (7B, 14B, 32B)
-- Qwen2.5-VL系
-- その他のVision-Language Models
+- **Qwen2.5-VL系** (3B, 7B)
+- **Qwen3-VL系** (4B, 8B) - 最新世代
+- **Huihui-AI abliterated** (試験用)
 
 ## プロジェクト構成
 
@@ -37,19 +37,22 @@ sd-prompt-analyzer/
 │   ├── core/                # コアモジュール
 │   │   ├── image_parser.py
 │   │   ├── model_manager.py
-│   │   └── vlm_interface.py
+│   │   ├── vlm_interface.py
+│   │   └── vlm_interface_gguf.py  # GGUF形式対応
 │   ├── ui/                  # UIモジュール
 │   │   └── gradio_app.py
 │   └── utils/               # ユーティリティ
-│       ├── config_loader.py
-│       └── image_utils.py
+│       └── config_loader.py
 ├── config/                  # 設定ファイル
 │   ├── settings.yaml
 │   └── model_presets.yaml
 ├── scripts/                 # スクリプト
 │   ├── setup.py
-│   └── test_model.py
+│   ├── test_model.py
+│   ├── check_cuda.py
+│   └── check_gpu.py
 ├── requirements.txt
+├── start.bat                # Windows起動スクリプト
 └── app.py                   # エントリーポイント
 ```
 
@@ -119,14 +122,22 @@ python app.py
 ### UI上でダウンロード
 
 1. 「モデル管理」タブを開く
-2. プリセットを選択（例: qwen2-vl-7b）
+2. プリセットを選択（例: qwen3-vl-4b）
 3. 「ダウンロード開始」ボタンをクリック
 
 ### プリセット一覧
 
-- **qwen2-vl-7b**: 高速、軽量（VRAM ~8GB）- 日常使用に推奨
-- **qwen2.5-vl-14b**: バランス型（VRAM ~16GB）- 高品質分析に推奨
-- **qwen2.5-vl-32b**: 最高品質（VRAM ~24GB）- 詳細分析に推奨
+**Qwen2.5-VL シリーズ**
+- **qwen2.5-vl-3b**: 軽量版（VRAM ~5GB）- 低メモリ環境向け
+- **qwen2.5-vl-7b**: 高品質（VRAM ~8-10GB）
+
+**Qwen3-VL シリーズ（最新世代）**
+- **qwen3-vl-4b**: バランス型（VRAM ~6GB）- 推奨
+- **qwen3-vl-8b**: 高性能（VRAM ~10-12GB）
+
+**試験用**
+- **huihui-qwen3-vl-4b-abliterated**: フィルタ除去版 4B
+- **huihui-qwen3-vl-8b-abliterated**: フィルタ除去版 8B
 
 ## 設定ファイル
 
@@ -144,7 +155,7 @@ paths:
   models_dir: "./models"
 
 model:
-  default: "qwen2-vl-7b"
+  default: "qwen3-vl-4b"
   device: "auto"
   dtype: "bfloat16"
 
@@ -168,7 +179,7 @@ ui:
 ### モデルのロードに失敗する
 
 - GPUメモリが不足している可能性があります
-- より小さいモデル（7Bモデル）を試してください
+- より小さいモデル（3B/4Bモデル）を試してください
 - `config/settings.yaml`の`device`を`cpu`に変更してください（遅くなります）
 
 ### 画像にメタデータがない

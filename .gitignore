@@ -59,3 +59,9 @@ desktop.ini
 *.swp
 *.swo
 *~
+
+# アプリケーションキャッシュ
+.last_model_cache.json
+
+# Windows特殊ファイル（誤作成防止）
+nul

@@ -62,9 +62,8 @@ class PromptAnalyzerUI:
         initial_max_tokens = cached_settings.get('max_tokens', self.config['inference']['max_tokens'])
         initial_top_p = cached_settings.get('top_p', self.config['inference']['top_p'])
 
-        with gr.Blocks(title="SD Prompt Analyzer", css=custom_css) as interface:
-            gr.Markdown("# SD Prompt Analyzer")
-            gr.Markdown("Stable Diffusion画像のプロンプトを分析するツール")
+        with gr.Blocks(title="Prompt Analyzer", css=custom_css) as interface:
+            gr.Markdown("# Prompt Analyzer")
 
             with gr.Tabs():
                 # タブ1: 画像分析
@@ -73,7 +72,7 @@ class PromptAnalyzerUI:
                         # 左側: 画像表示
                         with gr.Column(scale=1):
                             image_display = gr.Image(
-                                label="ここに画像をドロップ",
+                                label="画像",
                                 type="filepath",
                                 sources=["upload"],
                                 height=400

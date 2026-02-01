@@ -4,7 +4,7 @@ VLMモデルのダウンロード・管理
 from pathlib import Path
 from typing import List, Dict, Optional
 import os
-from huggingface_hub import snapshot_download, hf_hub_download, HfApi
+from huggingface_hub import snapshot_download
 
 
 class ModelManager:
@@ -22,8 +22,7 @@ class ModelManager:
         self,
         repo_id: str,
         local_name: str = None,
-        force_download: bool = False,
-        filename: str = None
+        force_download: bool = False
     ) -> str:
         """
         Hugging Faceからモデルをダウンロード
@@ -32,7 +31,6 @@ class ModelManager:
             repo_id: HF repo ID (例: "Qwen/Qwen2-VL-7B-Instruct")
             local_name: ローカル保存名（未指定ならrepo名を使用）
             force_download: 既存モデルを上書き
-            filename: GGUFファイル名（GGUF形式の場合に指定）
 
         Returns:
             ダウンロードしたモデルのパス
@@ -43,63 +41,29 @@ class ModelManager:
 
         local_path = self.models_dir / local_name
 
-        # GGUFファイルの場合（単一ファイル）
-        if filename and filename.endswith('.gguf'):
-            gguf_file_path = local_path / filename
+        # 既存モデルのチェック
+        if local_path.exists() and not force_download:
+            print(f"モデルは既にダウンロード済みです: {local_path}")
+            return str(local_path)
 
-            # 既存ファイルのチェック
-            if gguf_file_path.exists() and not force_download:
-                print(f"GGUFファイルは既にダウンロード済みです: {gguf_file_path}")
-                return str(gguf_file_path)
+        print(f"モデルをダウンロード中: {repo_id}")
+        print(f"保存先: {local_path}")
 
-            # ディレクトリを作成
-            local_path.mkdir(parents=True, exist_ok=True)
+        try:
+            # Hugging Faceからモデルをダウンロード
+            downloaded_path = snapshot_download(
+                repo_id=repo_id,
+                local_dir=str(local_path),
+                local_dir_use_symlinks=False,
+                resume_download=True
+            )
 
-            print(f"GGUFモデルをダウンロード中: {repo_id}/{filename}")
-            print(f"保存先: {gguf_file_path}")
+            print(f"✓ ダウンロード完了: {downloaded_path}")
+            return str(local_path)
 
-            try:
-                # 単一ファイルをダウンロード
-                downloaded_file = hf_hub_download(
-                    repo_id=repo_id,
-                    filename=filename,
-                    local_dir=str(local_path),
-                    local_dir_use_symlinks=False,
-                    resume_download=True
-                )
-
-                print(f"✓ GGUFダウンロード完了: {downloaded_file}")
-                return str(gguf_file_path)
-
-            except Exception as e:
-                print(f"✗ GGUFダウンロード失敗: {e}")
-                raise
-
-        # Transformers形式の場合（ディレクトリ全体）
-        else:
-            # 既存モデルのチェック
-            if local_path.exists() and not force_download:
-                print(f"モデルは既にダウンロード済みです: {local_path}")
-                return str(local_path)
-
-            print(f"モデルをダウンロード中: {repo_id}")
-            print(f"保存先: {local_path}")
-
-            try:
-                # Hugging Faceからモデルをダウンロード
-                downloaded_path = snapshot_download(
-                    repo_id=repo_id,
-                    local_dir=str(local_path),
-                    local_dir_use_symlinks=False,
-                    resume_download=True
-                )
-
-                print(f"✓ ダウンロード完了: {downloaded_path}")
-                return str(local_path)
-
-            except Exception as e:
-                print(f"✗ ダウンロード失敗: {e}")
-                raise
+        except Exception as e:
+            print(f"✗ ダウンロード失敗: {e}")
+            raise
 
     def list_local_models(self) -> List[Dict]:
         """
@@ -144,7 +108,7 @@ class ModelManager:
 
         return models
 
-    def validate_model(self, model_path: str, is_gguf: bool = False) -> bool:
+    def validate_model(self, model_path: str) -> bool:
         """
         モデルが正しく配置されているか検証
 
@@ -154,35 +118,14 @@ class ModelManager:
         - model.safetensors (または分割ファイル)
         - preprocessor_config.json (VLMの場合)
 
-        GGUF形式:
-        - *.gguf ファイル
-
         Args:
-            model_path: モデルファイル/ディレクトリのパス
-            is_gguf: GGUFモデルかどうか
+            model_path: モデルディレクトリのパス
 
         Returns:
             True if valid
         """
         model_path = Path(model_path)
 
-        # GGUFファイルの検証
-        if is_gguf:
-            if model_path.is_file() and model_path.suffix == '.gguf':
-                return True
-            elif model_path.is_dir():
-                # ディレクトリ内にGGUFファイルがあるか確認
-                gguf_files = list(model_path.glob('*.gguf'))
-                if gguf_files:
-                    return True
-                else:
-                    print(f"GGUFファイルが見つかりません: {model_path}")
-                    return False
-            else:
-                print(f"GGUFファイルが見つかりません: {model_path}")
-                return False
-
-        # Transformers形式の検証
         if not model_path.exists() or not model_path.is_dir():
             print(f"モデルディレクトリが見つかりません: {model_path}")
             return False

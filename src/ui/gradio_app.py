@@ -114,13 +114,13 @@ class PromptAnalyzerUI:
                                 preset_btn_2 = gr.Button("✅ プロンプトとの一致確認", size="sm")
                             with gr.Row():
                                 preset_btn_3 = gr.Button("✨ プロンプト改善案", size="sm")
-                                preset_btn_4 = gr.Button("📝 詳細プロンプト提案", size="sm")
+                                preset_btn_4 = gr.Button("🎬 動画生成プロンプト", size="sm")
 
                             user_input = gr.Textbox(
                                 label="質問を入力",
-                                placeholder="または、上のボタンから質問を選択。Enterで送信",
-                                lines=1,
-                                max_lines=1
+                                placeholder="または、上のボタンから質問を選択。Ctrl+Enterで送信",
+                                lines=3,
+                                max_lines=5
                             )
                             submit_btn = gr.Button("送信", variant="primary")
 
@@ -131,7 +131,9 @@ class PromptAnalyzerUI:
                                 value=None,
                                 interactive=True
                             )
-                            load_model_btn = gr.Button("モデルをロード")
+                            with gr.Row():
+                                load_model_btn = gr.Button("モデルをロード")
+                                unload_model_btn = gr.Button("モデルをクリア")
                             model_status = gr.Textbox(
                                 label="モデル状態",
                                 value="モデル未ロード",
@@ -228,29 +230,29 @@ class PromptAnalyzerUI:
                 outputs=[chatbot, user_input, context_info, model_status]
             )
 
-            # 質問プリセットボタン
+            # 質問プリセットボタン - 入力ボックスにテキストを追記
             preset_btn_1.click(
-                fn=self.preset_question_1,
-                inputs=[chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input, context_info, model_status]
+                fn=lambda current: current + "この画像について説明してください。",
+                inputs=[user_input],
+                outputs=[user_input]
             )
 
             preset_btn_2.click(
-                fn=self.preset_question_2,
-                inputs=[chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input, context_info, model_status]
+                fn=lambda current: current + "この画像とプロンプトは一致していますか?",
+                inputs=[user_input],
+                outputs=[user_input]
             )
 
             preset_btn_3.click(
-                fn=self.preset_question_3,
-                inputs=[chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input, context_info, model_status]
+                fn=lambda current: current + "改善したプロンプトを書いてください。",
+                inputs=[user_input],
+                outputs=[user_input]
             )
 
             preset_btn_4.click(
-                fn=self.preset_question_4,
-                inputs=[chatbot, temperature_slider, max_tokens_slider],
-                outputs=[chatbot, user_input, context_info, model_status]
+                fn=lambda current: current + "この画像をWAN2.2で動画化するプロンプト（英語）をScene,Action,Emotion,Setting,Lighting,Camera,Styleをそれぞれ書いてください。",
+                inputs=[user_input],
+                outputs=[user_input]
             )
 
             clear_btn.click(
@@ -278,6 +280,11 @@ class PromptAnalyzerUI:
             load_model_btn.click(
                 fn=self.load_vlm_model,
                 inputs=[model_dropdown],
+                outputs=[model_status, context_info]
+            )
+
+            unload_model_btn.click(
+                fn=self.unload_vlm_model,
                 outputs=[model_status, context_info]
             )
 
@@ -352,26 +359,6 @@ class PromptAnalyzerUI:
             self.current_image_path = None
             self.current_metadata = None
             return "画像の読み込みに失敗しました。もう一度ドロップしてください。", "", "{}"
-
-    def preset_question_1(self, history: List, temperature: float, max_tokens: int):
-        """プリセット質問1: この画像について説明"""
-        for result in self.chat_with_image("この画像について説明してください", history, temperature, max_tokens):
-            yield result
-
-    def preset_question_2(self, history: List, temperature: float, max_tokens: int):
-        """プリセット質問2: プロンプトとの一致確認"""
-        for result in self.chat_with_image("この画像とプロンプトは一致していますか?", history, temperature, max_tokens):
-            yield result
-
-    def preset_question_3(self, history: List, temperature: float, max_tokens: int):
-        """プリセット質問3: プロンプト改善案"""
-        for result in self.chat_with_image("改善したプロンプトを書いてください", history, temperature, max_tokens):
-            yield result
-
-    def preset_question_4(self, history: List, temperature: float, max_tokens: int):
-        """プリセット質問4: 詳細プロンプト提案"""
-        for result in self.chat_with_image("より詳細なプロンプトを提案してください", history, temperature, max_tokens):
-            yield result
 
     def _get_model_status(self) -> str:
         """現在のモデル状態を取得"""
@@ -571,6 +558,18 @@ class PromptAnalyzerUI:
             import traceback
             error_detail = traceback.format_exc()
             return f"✗ エラー: {str(e)}\n\n詳細:\n{error_detail}", "<small style='color: gray;'>--</small>"
+
+    def unload_vlm_model(self) -> Tuple[str, str]:
+        """VLMモデルをアンロードしてVRAMを解放"""
+        if self.current_vlm is None:
+            return "モデルは既にアンロードされています", "<small style='color: gray;'>--</small>"
+
+        try:
+            self.current_vlm.unload_model()
+            self.current_vlm = None
+            return "✓ モデルをアンロードしました（VRAMを解放）", "<small style='color: gray;'>--</small>"
+        except Exception as e:
+            return f"✗ アンロード失敗: {str(e)}", "<small style='color: gray;'>--</small>"
 
     def update_preset_info(self, preset_name: str) -> Tuple:
         """プリセット情報を表示"""

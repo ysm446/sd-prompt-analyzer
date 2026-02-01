@@ -3,6 +3,7 @@ Gradio UI実装
 """
 import gradio as gr
 import json
+import time
 from pathlib import Path
 from typing import List, Dict, Optional, Tuple
 
@@ -435,6 +436,7 @@ class PromptAnalyzerUI:
         try:
             # VLMでストリーミング分析
             response = ""
+            start_time = time.time()
             for chunk in self.current_vlm.analyze_image_with_prompt_stream(
                 image_path=self.current_image_path,
                 prompt_text=prompt_text,
@@ -445,6 +447,12 @@ class PromptAnalyzerUI:
                 response += chunk
                 history[-1]["content"] = response
                 yield history, "", self._get_context_info(history), self._get_model_status()
+
+            # 生成時間を追加
+            elapsed_time = time.time() - start_time
+            response += f"\n\n<small style='color: gray;'>⏱ {elapsed_time:.1f}s</small>"
+            history[-1]["content"] = response
+            yield history, "", self._get_context_info(history), self._get_model_status()
 
         except Exception as e:
             history[-1]["content"] = f"エラー: {str(e)}"

@@ -410,33 +410,43 @@ class VLMInterface:
                         from transformers import Qwen2_5_VLForConditionalGeneration
                         return Qwen2_5_VLForConditionalGeneration
                     except ImportError:
-                        print(f"  警告: Qwen2_5_VLForConditionalGenerationが見つかりません。AutoModelを使用します。")
-                        from transformers import AutoModel
-                        return AutoModel
+                        print(f"  警告: Qwen2_5_VLForConditionalGenerationが見つかりません。AutoModelForVision2Seqを使用します。")
+                        from transformers import AutoModelForVision2Seq
+                        return AutoModelForVision2Seq
 
                 elif architecture == "Qwen2VLForConditionalGeneration":
                     try:
                         from transformers import Qwen2VLForConditionalGeneration
                         return Qwen2VLForConditionalGeneration
                     except ImportError:
-                        print(f"  警告: Qwen2VLForConditionalGenerationが見つかりません。AutoModelを使用します。")
-                        from transformers import AutoModel
-                        return AutoModel
+                        print(f"  警告: Qwen2VLForConditionalGenerationが見つかりません。AutoModelForVision2Seqを使用します。")
+                        from transformers import AutoModelForVision2Seq
+                        return AutoModelForVision2Seq
+
+                elif architecture == "Qwen3VLForConditionalGeneration":
+                    try:
+                        from transformers import Qwen3VLForConditionalGeneration
+                        return Qwen3VLForConditionalGeneration
+                    except ImportError:
+                        print(f"  警告: Qwen3VLForConditionalGenerationが見つかりません。AutoModelForVision2Seqを使用します。")
+                        from transformers import AutoModelForVision2Seq
+                        return AutoModelForVision2Seq
 
                 else:
-                    print(f"  未知のアーキテクチャです。AutoModelを使用します。")
-                    from transformers import AutoModel
-                    return AutoModel
+                    # 未知のアーキテクチャでもgenerate()メソッドを持つモデルを使用
+                    print(f"  未知のアーキテクチャです。AutoModelForVision2Seqを使用します。")
+                    from transformers import AutoModelForVision2Seq
+                    return AutoModelForVision2Seq
 
             except Exception as e:
                 print(f"  警告: config.jsonの読み込みに失敗しました: {e}")
-                print(f"  AutoModelを使用します。")
-                from transformers import AutoModel
-                return AutoModel
+                print(f"  AutoModelForVision2Seqを使用します。")
+                from transformers import AutoModelForVision2Seq
+                return AutoModelForVision2Seq
         else:
-            print(f"  警告: config.jsonが見つかりません。AutoModelを使用します。")
-            from transformers import AutoModel
-            return AutoModel
+            print(f"  警告: config.jsonが見つかりません。AutoModelForVision2Seqを使用します。")
+            from transformers import AutoModelForVision2Seq
+            return AutoModelForVision2Seq
 
     def _get_torch_dtype(self):
         """データ型文字列をtorch dtypeに変換"""

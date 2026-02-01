@@ -1,18 +1,5 @@
 presets:
-  # Qwen2-VL シリーズ
-  qwen2-vl-2b:
-    repo_id: "Qwen/Qwen2-VL-2B-Instruct"
-    local_name: "qwen2-vl-2b"
-    description: "Qwen2-VL 2B 軽量版（VRAM ~4GB）"
-    recommended_for: "低メモリ環境"
-
-  qwen2-vl-7b:
-    repo_id: "Qwen/Qwen2-VL-7B-Instruct"
-    local_name: "qwen2-vl-7b"
-    description: "Qwen2-VL 7B（VRAM ~8GB）"
-    recommended_for: "標準的な使用"
-
-  # Qwen2.5-VL シリーズ（最新版）
+  # Qwen2.5-VL シリーズ
   qwen2.5-vl-3b:
     repo_id: "Qwen/Qwen2.5-VL-3B-Instruct"
     local_name: "qwen2.5-vl-3b"
@@ -24,3 +11,16 @@ presets:
     local_name: "qwen2.5-vl-7b"
     description: "Qwen2.5-VL 7B 最新版（VRAM ~8-10GB）"
     recommended_for: "最新機能・高品質"
+
+  # Qwen3-VL シリーズ（最新世代）
+  qwen3-vl-4b:
+    repo_id: "Qwen/Qwen3-VL-4B-Instruct"
+    local_name: "qwen3-vl-4b"
+    description: "Qwen3-VL 4B 軽量版（VRAM ~6GB）"
+    recommended_for: "最新世代・バランス型"
+
+  qwen3-vl-8b:
+    repo_id: "Qwen/Qwen3-VL-8B-Instruct"
+    local_name: "qwen3-vl-8b"
+    description: "Qwen3-VL 8B（VRAM ~10-12GB）"
+    recommended_for: "最新世代・高性能"

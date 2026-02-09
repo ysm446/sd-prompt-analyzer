@@ -68,7 +68,8 @@ class PromptAnalyzerUI:
                                 label="画像",
                                 type="filepath",
                                 sources=["upload"],
-                                height=400
+                                height=400,
+                                show_fullscreen_button=False
                             )
 
                             # プロンプト情報表示

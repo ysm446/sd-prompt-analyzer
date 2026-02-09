@@ -18,7 +18,7 @@ if exist "%USERPROFILE%\miniconda3\Scripts\activate.bat" (
     echo [ERROR] Conda not found. Please check your Conda installation.
     echo.
     echo Please run this command in Conda prompt:
-    echo   conda activate sd-prompt-analyzer
+    echo   conda activate main
     echo   python app.py
     echo.
     pause
@@ -26,16 +26,16 @@ if exist "%USERPROFILE%\miniconda3\Scripts\activate.bat" (
 )
 
 REM Activate Conda environment
-echo Activating conda environment: sd-prompt-analyzer
-call conda activate sd-prompt-analyzer
+echo Activating conda environment: main
+call conda activate main
 
 if %ERRORLEVEL% NEQ 0 (
     echo.
-    echo [ERROR] Environment 'sd-prompt-analyzer' not found
+    echo [ERROR] Environment 'main' not found
     echo.
     echo Please setup the environment first:
-    echo   1. conda create -n sd-prompt-analyzer python=3.10 -y
-    echo   2. conda activate sd-prompt-analyzer
+    echo   1. conda create -n main python=3.10 -y
+    echo   2. conda activate main
     echo   3. pip install -r requirements.txt
     echo   4. python scripts/setup.py
     echo.

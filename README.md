@@ -27,7 +27,7 @@ Stable Diffusionで生成された画像とそのプロンプトを、Vision-Lan
 ## プロジェクト構成
 
 ```
-sd-prompt-analyzer/
+main/
 ├── data/
 │   ├── sd_outputs/          # SD生成画像の保存先
 │   ├── database/            # メタデータDB
@@ -62,17 +62,17 @@ sd-prompt-analyzer/
 
 ```bash
 git clone <repository-url>
-cd sd-prompt-analyzer
+cd main
 ```
 
 ### 2. Conda環境の作成（推奨）
 
 ```bash
 # Conda環境を作成
-conda create -n sd-prompt-analyzer python=3.10 -y
+conda create -n main python=3.10 -y
 
 # 環境をアクティベート
-conda activate sd-prompt-analyzer
+conda activate main
 ```
 
 ### 3. 依存関係のインストール
@@ -93,7 +93,7 @@ python scripts/setup.py
 
 ```bash
 # Conda環境をアクティベート
-conda activate sd-prompt-analyzer
+conda activate main
 
 # アプリケーションを起動
 python app.py

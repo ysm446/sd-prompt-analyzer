@@ -5,6 +5,7 @@ from pathlib import Path
 from typing import Dict, Optional
 from PIL import Image
 import re
+import json
 
 
 class ImageParser:
@@ -57,6 +58,11 @@ class ImageParser:
                 if params_text:
                     parsed = ImageParser.parse_parameters(params_text)
                     metadata.update(parsed)
+                else:
+                    # 通常のSDメタデータが見つからない場合、ComfyUIフォーマットを試す
+                    comfy_data = ImageParser.parse_comfyui_metadata(img.info)
+                    if comfy_data:
+                        metadata.update(comfy_data)
 
         return metadata
 
@@ -155,5 +161,163 @@ class ImageParser:
                 pass  # 文字列のまま
 
             settings[key] = value
+
+        return settings
+
+    @staticmethod
+    def parse_comfyui_metadata(png_info: Dict) -> Optional[Dict]:
+        """
+        ComfyUIのメタデータをパース
+
+        Args:
+            png_info: PIL Imageのinfoディクショナリ
+
+        Returns:
+            {
+                'prompt': str,
+                'negative_prompt': str,
+                'settings': dict
+            }
+            または None（ComfyUIメタデータが見つからない場合）
+        """
+        result = {
+            'prompt': '',
+            'negative_prompt': '',
+            'settings': {}
+        }
+
+        # ComfyUIは 'prompt' または 'workflow' キーにJSONを保存
+        workflow_json = None
+
+        for key in ['prompt', 'workflow']:
+            if key in png_info:
+                try:
+                    workflow_json = json.loads(png_info[key])
+                    break
+                except (json.JSONDecodeError, TypeError):
+                    continue
+
+        if not workflow_json:
+            return None
+
+        # ワークフローからプロンプトとネガティブプロンプトを抽出
+        prompts = ImageParser._extract_comfyui_prompts(workflow_json)
+
+        if prompts['positive']:
+            result['prompt'] = '\n\n---\n\n'.join(prompts['positive'])
+        if prompts['negative']:
+            result['negative_prompt'] = '\n\n---\n\n'.join(prompts['negative'])
+
+        # 設定情報を抽出
+        settings = ImageParser._extract_comfyui_settings(workflow_json)
+        if settings:
+            result['settings'] = settings
+
+        # プロンプトが見つかった場合のみ結果を返す
+        if result['prompt'] or result['negative_prompt']:
+            result['settings']['source'] = 'ComfyUI'
+            return result
+
+        return None
+
+    @staticmethod
+    def _extract_comfyui_prompts(workflow: Dict) -> Dict:
+        """
+        ComfyUIワークフローからプロンプトを抽出
+
+        Args:
+            workflow: ComfyUIのワークフローJSON
+
+        Returns:
+            {
+                'positive': [プロンプト文字列のリスト],
+                'negative': [ネガティブプロンプト文字列のリスト]
+            }
+        """
+        positive_prompts = []
+        negative_prompts = []
+
+        # ワークフローの各ノードを確認
+        for node_id, node_data in workflow.items():
+            if not isinstance(node_data, dict):
+                continue
+
+            # class_typeでノードタイプを判定
+            class_type = node_data.get('class_type', '')
+
+            # プロンプト関連のノードを検出
+            # CLIPTextEncode系のノード
+            if 'CLIPTextEncode' in class_type or 'Text' in class_type:
+                inputs = node_data.get('inputs', {})
+
+                # テキストフィールドを探す
+                text = inputs.get('text', '')
+                if text and isinstance(text, str):
+                    # ノードのタイトルやclass_typeから正負を判定
+                    node_title = node_data.get('_meta', {}).get('title', '').lower()
+
+                    # ネガティブプロンプトの判定
+                    is_negative = (
+                        'negative' in node_title or
+                        'negative' in class_type.lower() or
+                        node_id.endswith('_negative') or
+                        # inputsにconditioning_toがある場合、接続先から判定も可能
+                        any('negative' in str(v).lower() for v in inputs.values() if isinstance(v, (str, list)))
+                    )
+
+                    if is_negative:
+                        negative_prompts.append(text)
+                    else:
+                        positive_prompts.append(text)
+
+        return {
+            'positive': positive_prompts,
+            'negative': negative_prompts
+        }
+
+    @staticmethod
+    def _extract_comfyui_settings(workflow: Dict) -> Dict:
+        """
+        ComfyUIワークフローから設定情報を抽出
+
+        Args:
+            workflow: ComfyUIのワークフローJSON
+
+        Returns:
+            設定情報のディクショナリ
+        """
+        settings = {}
+
+        for node_id, node_data in workflow.items():
+            if not isinstance(node_data, dict):
+                continue
+
+            class_type = node_data.get('class_type', '')
+            inputs = node_data.get('inputs', {})
+
+            # KSampler系のノードから設定を抽出
+            if 'KSampler' in class_type or 'Sampler' in class_type:
+                if 'steps' in inputs:
+                    settings['steps'] = inputs['steps']
+                if 'cfg' in inputs:
+                    settings['cfg_scale'] = inputs['cfg']
+                if 'sampler_name' in inputs:
+                    settings['sampler'] = inputs['sampler_name']
+                if 'scheduler' in inputs:
+                    settings['scheduler'] = inputs['scheduler']
+                if 'seed' in inputs:
+                    settings['seed'] = inputs['seed']
+                if 'denoise' in inputs:
+                    settings['denoise'] = inputs['denoise']
+
+            # CheckpointLoaderノードからモデル情報を抽出
+            elif 'CheckpointLoader' in class_type:
+                if 'ckpt_name' in inputs:
+                    settings['model'] = inputs['ckpt_name']
+
+            # EmptyLatentImageノードから画像サイズを抽出
+            elif 'EmptyLatentImage' in class_type or 'LatentImage' in class_type:
+                if 'width' in inputs and 'height' in inputs:
+                    settings['size'] = f"{inputs['width']}x{inputs['height']}"
 
         return settings

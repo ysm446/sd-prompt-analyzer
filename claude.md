@@ -1,6 +1,6 @@
 # SD Prompt Analyzer
 
-Stable Diffusionで生成された画像のメタデータ（プロンプト）を、Vision-Language Model（VLM）を使って対話的に評価・分析するWebアプリケーション。
+Stable DiffusionやComfyUIで生成された画像のメタデータ（プロンプト）を、Vision-Language Model（VLM）を使って対話的に評価・分析するWebアプリケーション。
 
 ## 技術スタック
 
@@ -40,11 +40,19 @@ sd-prompt-analyzer/
 | モジュール | 役割 |
 |-----------|------|
 | `app.py` | ConfigLoaderで設定を読み込み、PromptAnalyzerUIを起動 |
-| `image_parser.py` | PNG画像からプロンプト、ネガティブプロンプト、設定パラメータを抽出 |
+| `image_parser.py` | PNG画像からプロンプト、ネガティブプロンプト、設定パラメータを抽出（SD/A1111形式とComfyUI形式の両方に対応） |
 | `model_manager.py` | Hugging Faceからのモデルダウンロード、ローカルモデル管理 |
 | `vlm_interface.py` | Transformers形式VLMのモデルロード・推論 |
 | `vlm_interface_gguf.py` | GGUF形式（llama.cpp対応）VLMの推論 |
 | `gradio_app.py` | 3タブ構成のWebUI（画像分析、モデル管理、設定） |
+
+## 対応している画像形式
+
+- **Stable Diffusion (A1111形式)**: `parameters`キーにプロンプト情報が保存されているPNG画像
+- **ComfyUI形式**: `prompt`または`workflow`キーにワークフローJSONが保存されているPNG画像
+  - ワークフロー内のCLIPTextEncodeノードからプロンプトを自動抽出
+  - KSamplerノードから設定情報（steps, CFG, samplerなど）を抽出
+  - 複数のプロンプトノードがある場合は`---`区切りで結合
 
 ## コーディング規約
 
